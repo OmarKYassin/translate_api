@@ -1,0 +1,11 @@
+services:
+  translate_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"  # Map port 8080 on the host to port 8080 in the container
+    environment:
+      - PORT=8080    # Set the port for the application
+    env_file:
+      - .env
