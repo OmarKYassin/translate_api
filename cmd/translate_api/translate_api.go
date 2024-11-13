@@ -14,18 +14,18 @@ import (
 
 func main() {
 	// Initialize Zap logger
-	logging.InitLogger()
-	defer logging.SyncLogger()
+	logger := logging.Logger()
+	logging.SyncLogger()
 
 	if err := godotenv.Load(); err != nil {
-		logging.Logger.Error("No .env file found, loading environment variables from system.")
+		logger.Error("No .env file found, loading environment variables from system.")
 	}
 
 	// Initialize a Gin router
 	router := gin.New()
 
-	router.Use(ginzap.Ginzap(logging.Logger, time.RFC3339, true))
-	router.Use(ginzap.RecoveryWithZap(logging.Logger, true))
+	router.Use(ginzap.Ginzap(logger, time.RFC3339, true))
+	router.Use(ginzap.RecoveryWithZap(logger, true))
 
 	routes.RegisterRoutes(router)
 

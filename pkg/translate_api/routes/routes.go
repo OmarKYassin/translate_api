@@ -9,6 +9,8 @@ import (
 // Register routes to the Gin router
 func RegisterRoutes(router *gin.Engine) {
 	router.GET("/ping", ping)
+
+	router.POST("/translate", translate)
 }
 
 func ping(c *gin.Context) {
