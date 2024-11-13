@@ -1,6 +1,6 @@
 # Translate API
 
-This is a simple API that receives a request containing JSON structured call log and translates the non English words into English.
+This is a simple API that receives a request containing JSON structured call log and translates the Arabic words into English.
 
 ---
 
@@ -11,6 +11,7 @@ To run this application make sure you have docker and docker compose on your mac
 ``` bash
 git clone https://github.com/OmarKYassin/translate_api.git
 cd translate_api
+vim .env # You need to add a key with the name `OPENAI_API_KEY` in this file and optionally a key `PORT`
 docker-compose up
 ```
 
@@ -21,7 +22,7 @@ docker-compose up
 ### Path
 
 ``` http
-POST "http://localhost:3000/translate"
+POST "http://localhost:8080/translate"
 ```
 
 ## Body
