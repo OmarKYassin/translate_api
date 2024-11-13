@@ -36,11 +36,11 @@ func TestBuildPrompt(t *testing.T) {
 		Transcript: tran,
 	}
 
-	prompt, containsArabic := translator.buildPrompt()
+	prompt, containsArabic := translator.buildPrompts()
 
-	assert.Contains(t, prompt, "Translate the following sentences to English:\n")
-	assert.Contains(t, prompt, "0: مرحبا\n")
-	assert.NotContains(t, prompt, "1: hello\n")
+	assert.Contains(t, prompt[0], "Translate the following sentences to English:\n")
+	assert.Contains(t, prompt[0], "0: مرحبا\n")
+	assert.NotContains(t, prompt[0], "1: hello\n")
 	assert.True(t, containsArabic)
 }
 

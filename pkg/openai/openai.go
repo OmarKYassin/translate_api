@@ -49,18 +49,26 @@ func initClient() {
 }
 
 func (t *OpenAITranslator) Translate() error {
-	prompt, containsArabic := t.buildPrompt()
+	prompts, containsArabic := t.buildPrompts()
 	if !containsArabic {
 		return nil
 	}
+	var totalTranslatedSentences []IndexSentence
 
-	translatedSentences, err := t.requestTranslationFromOpenAI(prompt)
-	if err != nil {
-		return err
+	for _, prompt := range prompts {
+		translatedSentences, err := t.requestTranslationFromOpenAI(prompt)
+		if err != nil {
+			return fmt.Errorf("failed to translate chunk: %w", err)
+		}
+
+		totalTranslatedSentences = append(
+			totalTranslatedSentences,
+			translatedSentences.Sentences...,
+		)
 	}
 
 	// Update original transcript with translated sentences
-	for _, indexSentencePair := range translatedSentences.Sentences {
+	for _, indexSentencePair := range totalTranslatedSentences {
 		t.Transcript[indexSentencePair.Index].Sentence = indexSentencePair.Sentence
 	}
 
@@ -68,18 +76,44 @@ func (t *OpenAITranslator) Translate() error {
 }
 
 // Builds prompt and checks if there's any Arabic content
-func (t *OpenAITranslator) buildPrompt() (string, bool) {
-	var prompt strings.Builder
+func (t *OpenAITranslator) buildPrompts() ([]string, bool) {
 	containsArabic := false
-	prompt.WriteString("Translate the following sentences to English:\n")
+	var prompts []string
+	var currentPrompt strings.Builder
+	currentPrompt.WriteString("Translate the following sentences to English:\n")
+	currentLength := currentPrompt.Len()
 
 	for idx, entry := range t.Transcript {
-		if hasArabicLetters(entry.Sentence) {
-			containsArabic = true
-			prompt.WriteString(fmt.Sprintf("%d: %s\n", idx, entry.Sentence))
+		if !hasArabicLetters(entry.Sentence) {
+			continue
 		}
+		containsArabic = true
+		entryText := fmt.Sprintf("%d: %s\n", idx, entry.Sentence)
+		entryLength := len(entryText)
+
+		// If adding the entry exceeds the limit, finalize the current prompt and start a new one
+		if currentLength+entryLength > 9000 { // Adjust limit to stay within API token constraints
+			prompts = append(prompts, currentPrompt.String())
+			currentPrompt.Reset()
+			currentPrompt.WriteString("Translate the following sentences to English:\n")
+			currentLength = currentPrompt.Len()
+		}
+
+		// Add entry to the current prompt
+		currentPrompt.WriteString(entryText)
+		currentLength += entryLength
 	}
-	return prompt.String(), containsArabic
+
+	if !containsArabic {
+		return []string{}, containsArabic
+	}
+
+	// Add the last prompt if there’s remaining content
+	if currentPrompt.Len() > 0 {
+		prompts = append(prompts, currentPrompt.String())
+	}
+
+	return prompts, containsArabic
 }
 
 // Makes the OpenAI API call and returns the translation response

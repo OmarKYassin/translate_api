@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Translator interface {
-	Translate() (types.Transcript, error)
-}
-
 func translate(c *gin.Context) {
 	var tran types.Transcript
 	if err := c.ShouldBindJSON(&tran); err != nil {
@@ -22,6 +18,7 @@ func translate(c *gin.Context) {
 	translator := &openai.OpenAITranslator{
 		Transcript: tran,
 	}
+
 	if err := translator.Translate(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Translation failed", "details": err.Error()})
 		return
