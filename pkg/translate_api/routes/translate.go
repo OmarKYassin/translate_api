@@ -8,6 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type translator interface {
+	Translate() error
+}
+
 func translate(c *gin.Context) {
 	var tran types.Transcript
 	if err := c.ShouldBindJSON(&tran); err != nil {
@@ -16,7 +20,8 @@ func translate(c *gin.Context) {
 	}
 
 	translator := &openai.OpenAITranslator{
-		Transcript: tran,
+		Transcript:   tran,
+		OpenAICaller: openai.OpenAICaller{},
 	}
 
 	if err := translator.Translate(); err != nil {

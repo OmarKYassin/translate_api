@@ -1,18 +1,13 @@
 package openai
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/OmarKYassin/translate_api/pkg/types"
-	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
 )
 
 type IndexSentence struct {
@@ -20,33 +15,15 @@ type IndexSentence struct {
 	Sentence string `json:"sentence" jsonschema_description:"The sentence"`
 }
 
-type translation struct {
-	Sentences []IndexSentence `json:"translations"`
-}
-
 type OpenAITranslator struct {
-	Transcript types.Transcript
+	Transcript   types.Transcript
+	OpenAICaller Caller
 }
 
 var (
-	clientOnce                sync.Once
-	client                    *openai.Client
-	translationResponseSchema = generateSchema[translation]()
+	clientOnce sync.Once
+	client     *openai.Client
 )
-
-func Client() *openai.Client {
-	clientOnce.Do(initClient)
-	return client
-}
-
-func initClient() {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		panic("OPENAI_API_KEY environment variable is required")
-	}
-	client = openai.NewClient(option.WithAPIKey(apiKey))
-	return
-}
 
 func (t *OpenAITranslator) Translate() error {
 	prompts, containsArabic := t.buildPrompts()
@@ -56,7 +33,7 @@ func (t *OpenAITranslator) Translate() error {
 	var totalTranslatedSentences []IndexSentence
 
 	for _, prompt := range prompts {
-		translatedSentences, err := t.requestTranslationFromOpenAI(prompt)
+		translatedSentences, err := t.OpenAICaller.requestTranslation(prompt)
 		if err != nil {
 			return fmt.Errorf("failed to translate chunk: %w", err)
 		}
@@ -92,7 +69,7 @@ func (t *OpenAITranslator) buildPrompts() ([]string, bool) {
 		entryLength := len(entryText)
 
 		// If adding the entry exceeds the limit, finalize the current prompt and start a new one
-		if currentLength+entryLength > 9000 { // Adjust limit to stay within API token constraints
+		if currentLength+entryLength > 8000 { // Adjust limit to stay within API token constraints
 			prompts = append(prompts, currentPrompt.String())
 			currentPrompt.Reset()
 			currentPrompt.WriteString("Translate the following sentences to English:\n")
@@ -116,55 +93,8 @@ func (t *OpenAITranslator) buildPrompts() ([]string, bool) {
 	return prompts, containsArabic
 }
 
-// Makes the OpenAI API call and returns the translation response
-func (t *OpenAITranslator) requestTranslationFromOpenAI(prompt string) (translation, error) {
-	schemaParam := openai.ResponseFormatJSONSchemaJSONSchemaParam{
-		Name:   openai.F("IndexSentenceSchema"),
-		Schema: openai.F(translationResponseSchema),
-		Strict: openai.Bool(true),
-	}
-
-	responseFormat := openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
-		openai.ResponseFormatJSONSchemaParam{
-			Type:       openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
-			JSONSchema: openai.F(schemaParam),
-		},
-	)
-
-	chat, err := Client().Chat.Completions.New(
-		context.Background(),
-		openai.ChatCompletionNewParams{
-			Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-				openai.UserMessage(prompt),
-			}),
-			ResponseFormat: responseFormat,
-			Model:          openai.F(openai.ChatModelGPT4o2024_08_06),
-		},
-	)
-	if err != nil {
-		return translation{}, fmt.Errorf("Failed to create chat completion: %w", err)
-	}
-
-	var translatedSentences translation
-	err = json.Unmarshal([]byte(chat.Choices[0].Message.Content), &translatedSentences)
-	if err != nil {
-		return translation{}, fmt.Errorf("Failed to parse OpenAI response: %w", err)
-	}
-	return translatedSentences, nil
-}
-
 // Helper function to check for Arabic letters
 func hasArabicLetters(s string) bool {
 	arabicLetterRegex := regexp.MustCompile(`\p{Arabic}`)
 	return arabicLetterRegex.MatchString(s)
-}
-
-// JSON Schema generator for structured output
-func generateSchema[T any]() interface{} {
-	var v T
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-		DoNotReference:            true,
-	}
-	return reflector.Reflect(v)
 }
